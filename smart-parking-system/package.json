@@ -1,0 +1,53 @@
+{
+  "name": "smart-parking-system",
+  "version": "1.0.0",
+  "description": "IoT Smart Parking Management System with ESP32 firmware and Node.js backend",
+  "main": "backend/src/server.js",
+  "scripts": {
+    "comment-firmware": "Firmware build and monitor commands",
+    "firmware:build": "cd firmware && platformio run -e esp32dev",
+    "firmware:upload": "cd firmware && platformio run -t upload -e esp32dev",
+    "firmware:monitor": "cd firmware && platformio device monitor",
+    "firmware:clean": "cd firmware && platformio run --target clean",
+    "firmware:test": "cd firmware && platformio test",
+    "comment-backend": "Backend server commands",
+    "backend:install": "cd backend && npm install",
+    "backend:start": "cd backend && npm start",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:test": "cd backend && npm test",
+    "backend:lint": "cd backend && npm run lint",
+    "comment-mqtt": "MQTT and messaging tools",
+    "mqtt:spy": "node tools/mqtt-spy.js",
+    "mqtt:test": "node tools/mqtt-test.js",
+    "comment-database": "Database tools",
+    "db:inspect": "sqlite3 backend/data/parking.db",
+    "db:reset": "rm backend/data/parking.db && npm run backend:start",
+    "db:backup": "cp backend/data/parking.db backend/data/parking.db.backup.$(date +%s)",
+    "comment-api": "API testing and documentation",
+    "api:test": "node tools/api-tester.js",
+    "api:docs": "node tools/doc-generator.js",
+    "comment-deployment": "Deployment and orchestration",
+    "deploy:local": "docker-compose up -d",
+    "deploy:stop": "docker-compose down",
+    "deploy:logs": "docker-compose logs -f",
+    "comment-utility": "Utility commands",
+    "setup": "npm run backend:install && npm run firmware:build",
+    "health-check": "node tools/health-check.js",
+    "logs:backend": "tail -f backend/logs/*.log",
+    "lint": "cd backend && npm run lint"
+  },
+  "keywords": [
+    "IoT",
+    "smart-parking",
+    "ESP32",
+    "MQTT",
+    "Node.js",
+    "SQLite"
+  ],
+  "author": "Smart Parking Team",
+  "license": "MIT",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
+}

@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # MQTT Message Broker
+  mqtt-broker:
+    image: emqx/emqx:latest
+    container_name: smart-parking-mqtt
+    ports:
+      - "1883:1883"     # MQTT protocol (ESP32 connects here)
+      - "8083:8083"     # WebSocket (web client connections)
+      - "18083:18083"   # Dashboard (management UI)
+    environment:
+      EMQX_DEFAULT_USER: admin
+      EMQX_DEFAULT_PASS: emqx123
+    volumes:
+      - mqtt-data:/opt/emqx/data
+    networks:
+      - parking-network
+    healthcheck:
+      test: ["CMD", "emqx", "ctl", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Node.js Backend Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smart-parking-backend
+    ports:
+      - "3000:3000"     # Express API
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MQTT_BROKER_URL: mqtt://mqtt-broker:1883
+      MQTT_USERNAME: admin
+      MQTT_PASSWORD: emqx123
+      DATABASE_PATH: /data/parking.db
+    depends_on:
+      mqtt-broker:
+        condition: service_healthy
+    volumes:
+      - ./backend/src:/app/src          # Hot reload
+      - parking-db:/data                 # Persistent database
+    networks:
+      - parking-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/parking/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # SQLite Database (embedded in backend, but shown here for clarity)
+  # In production, consider PostgreSQL instead
+
+  # Optional: Adminer for database management
+  adminer:
+    image: adminer:latest
+    container_name: smart-parking-adminer
+    ports:
+      - "8080:8080"     # http://localhost:8080
+    environment:
+      ADMINER_DEFAULT_SERVER: sqlite
+    networks:
+      - parking-network
+    depends_on:
+      - backend
+    profiles:
+      - optional    # Run: docker-compose --profile optional up
+
+volumes:
+  mqtt-data:
+    driver: local
+  parking-db:
+    driver: local
+
+networks:
+  parking-network:
+    driver: bridge
+
+# Usage:
+#   Start services:     docker-compose up -d
+#   View logs:          docker-compose logs -f
+#   Stop services:      docker-compose down
+#   Clean everything:   docker-compose down -v
+#
+# Endpoints:
+#   API:           http://localhost:3000/api/parking/health
+#   MQTT Broker:   mqtt://localhost:1883
+#   EMQX Dashboard: http://localhost:18083 (admin/emqx123)
+#   Adminer:       http://localhost:8080 (if started)
