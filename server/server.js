@@ -31,14 +31,9 @@ app.get('/api/dashboard', (req, res) => {
       "SELECT COUNT(*) as count FROM logs WHERE date(timestamp) = date('now', 'localtime')"
     ).get().count;
 
-    // Currently parked across all zones
-    const parked = db.prepare(`
-      SELECT
-        COALESCE(SUM(CASE WHEN event_type = 'IN' THEN 1 ELSE 0 END), 0) -
-        COALESCE(SUM(CASE WHEN event_type = 'OUT' THEN 1 ELSE 0 END), 0) as count
-      FROM logs WHERE status = 'ALLOWED'
-    `).get();
-    const currentlyParked = Math.max(0, parked.count);
+    // Currently parked across all zones = number of active spot assignments.
+    const parked = db.prepare('SELECT COUNT(*) as count FROM active_spots').get();
+    const currentlyParked = parked.count || 0;
 
     const totalCapacity = db.prepare('SELECT SUM(total_capacity) as total FROM slots').get().total || 42;
 
@@ -65,10 +60,13 @@ app.post('/api/simulate', (req, res) => {
   if (!uid || !location || !event_type) {
     return res.status(400).json({ error: 'uid, location, and event_type are required' });
   }
-  mqttHandler.simulateScan(uid.toUpperCase().trim(), parseInt(location), event_type.toUpperCase());
+  const result = mqttHandler.simulateScan(uid.toUpperCase().trim(), parseInt(location), event_type.toUpperCase());
+  const spotSuffix = result && result.spot_label && result.spot_label !== '-' ? ` (Spot ${result.spot_label})` : '';
   res.json({
     success: true,
-    message: `Simulated ${event_type.toUpperCase()} scan for ${uid.toUpperCase()} at Zone ${location}`,
+    message: `Simulated ${event_type.toUpperCase()} scan for ${uid.toUpperCase()} at Zone ${location}${spotSuffix}`,
+    spot_label: result ? result.spot_label : '-',
+    status: result ? result.status : 'DENIED',
   });
 });
 
@@ -94,7 +92,7 @@ server.listen(PORT, () => {
 ╠══════════════════════════════════════════════╣
 ║   Dashboard:  http://localhost:${PORT}           ║
 ║   API:        http://localhost:${PORT}/api       ║
-║   MQTT:       mqtt://192.168.4.2:1883        ║
+║   MQTT:       test.mosquitto.org:1883       ║
 ╚══════════════════════════════════════════════╝
   `);
 });

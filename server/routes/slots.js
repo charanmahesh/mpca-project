@@ -8,16 +8,11 @@ router.get('/', (req, res) => {
     const slots = db.prepare('SELECT * FROM slots ORDER BY location').all();
 
     const slotsWithOccupancy = slots.map(slot => {
-      // Count occupancy: total ALLOWed INs minus total ALLOWed OUTs at this location
-      const result = db.prepare(`
-        SELECT
-          COALESCE(SUM(CASE WHEN event_type = 'IN' THEN 1 ELSE 0 END), 0) as ins,
-          COALESCE(SUM(CASE WHEN event_type = 'OUT' THEN 1 ELSE 0 END), 0) as outs
-        FROM logs
-        WHERE location = ? AND status = 'ALLOWED'
-      `).get(slot.location);
-
-      const occupied = Math.max(0, result.ins - result.outs);
+      // Occupancy comes from currently assigned live spots.
+      const result = db.prepare(
+        'SELECT COUNT(*) as occupied FROM active_spots WHERE location = ?'
+      ).get(slot.location);
+      const occupied = result.occupied || 0;
 
       return {
         ...slot,

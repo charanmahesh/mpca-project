@@ -33,6 +33,15 @@ db.exec(`
     total_capacity INTEGER DEFAULT 10,
     label TEXT DEFAULT ''
   );
+
+  CREATE TABLE IF NOT EXISTS active_spots (
+    uid TEXT PRIMARY KEY,
+    location INTEGER NOT NULL,
+    spot_number INTEGER NOT NULL,
+    spot_label TEXT NOT NULL,
+    assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(location, spot_number)
+  );
 `);
 
 // Seed default parking zones if empty

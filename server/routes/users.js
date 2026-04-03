@@ -5,11 +5,18 @@ const db = require('../db');
 // GET /api/users — List all registered users
 router.get('/', (req, res) => {
   try {
-    let query = 'SELECT * FROM users';
+    let query = `
+      SELECT
+        u.*,
+        a.location AS current_location,
+        a.spot_label AS current_spot
+      FROM users u
+      LEFT JOIN active_spots a ON a.uid = u.uid
+    `;
     const params = [];
 
     if (req.query.search) {
-      query += ' WHERE name LIKE ? OR uid LIKE ? OR vehicle_number LIKE ?';
+      query += ' WHERE u.name LIKE ? OR u.uid LIKE ? OR u.vehicle_number LIKE ?';
       const term = `%${req.query.search}%`;
       params.push(term, term, term);
     }

@@ -115,13 +115,13 @@ async function doSimulate(eventType) {
   try {
     const result = await api.simulateScan(uid, parseInt(location), eventType);
     showToast(result.message, 'success');
-    addSimLogEntry(uid, location, eventType);
+    addSimLogEntry(uid, location, eventType, result.spot_label, result.status);
   } catch (err) {
     showToast('Simulation failed: ' + err.message, 'error');
   }
 }
 
-function addSimLogEntry(uid, location, eventType) {
+function addSimLogEntry(uid, location, eventType, spotLabel, status) {
   const log = document.getElementById('sim-log');
   if (!log) return;
 
@@ -129,7 +129,9 @@ function addSimLogEntry(uid, location, eventType) {
   if (empty) empty.remove();
 
   const isIn = eventType === 'IN';
+  const isAllowed = status === 'ALLOWED';
   const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const spotText = spotLabel && spotLabel !== '-' ? spotLabel : `Zone ${location}`;
 
   const html = `
     <div class="activity-item">
@@ -139,7 +141,9 @@ function addSimLogEntry(uid, location, eventType) {
         <div class="event-meta">
           <span>Simulated</span>
           <span>&middot;</span>
-          <span class="badge zone">Zone ${location}</span>
+          <span class="badge zone">${spotText}</span>
+          <span>&middot;</span>
+          <span class="badge ${isAllowed ? 'allowed' : 'denied'}">${status || 'UNKNOWN'}</span>
         </div>
       </div>
       <div class="event-time">${time}</div>

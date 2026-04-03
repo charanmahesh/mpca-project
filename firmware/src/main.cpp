@@ -227,6 +227,7 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
     char *uid = strtok(message, ",");
     char *status = strtok(NULL, ",");
     char *name = strtok(NULL, ",");
+    char *spot = strtok(NULL, ",");
 
     if (uid && status && name) {
       bool allowed = (strcmp(status, "ALLOWED") == 0);
@@ -234,7 +235,11 @@ void mqtt_callback(char *topic, byte *payload, unsigned int length) {
 
       char displayMsg[100];
       if (allowed) {
-        snprintf(displayMsg, sizeof(displayMsg), "\nALLOWED\nWelcome %s", name);
+        if (spot && strlen(spot) > 0 && strcmp(spot, "-") != 0) {
+          snprintf(displayMsg, sizeof(displayMsg), "\nALLOWED\n%s -> %s", name, spot);
+        } else {
+          snprintf(displayMsg, sizeof(displayMsg), "\nALLOWED\nWelcome %s", name);
+        }
         showDisplay("OK", displayMsg);
       } else {
         snprintf(displayMsg, sizeof(displayMsg), "\nDENIED\nAccess Denied %s", name);

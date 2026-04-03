@@ -4,6 +4,44 @@ const db = require('./db');
 let mqttClient = null;
 let io = null;
 
+function zoneLetter(location) {
+  return String.fromCharCode(64 + location); // 1->A, 2->B, ...
+}
+
+function getOrAssignSpot(uid, location) {
+  const existing = db.prepare('SELECT * FROM active_spots WHERE uid = ?').get(uid);
+  if (existing) return existing;
+
+  const zone = db.prepare('SELECT total_capacity FROM slots WHERE location = ?').get(location);
+  if (!zone || !zone.total_capacity || zone.total_capacity < 1) return null;
+
+  const occupied = db.prepare('SELECT spot_number FROM active_spots WHERE location = ?').all(location);
+  const occupiedSet = new Set(occupied.map((row) => row.spot_number));
+
+  let freeSpot = null;
+  for (let i = 1; i <= zone.total_capacity; i++) {
+    if (!occupiedSet.has(i)) {
+      freeSpot = i;
+      break;
+    }
+  }
+  if (!freeSpot) return null;
+
+  const label = `${zoneLetter(location)}${freeSpot}`;
+  db.prepare(
+    'INSERT INTO active_spots (uid, location, spot_number, spot_label) VALUES (?, ?, ?, ?)'
+  ).run(uid, location, freeSpot, label);
+
+  return db.prepare('SELECT * FROM active_spots WHERE uid = ?').get(uid);
+}
+
+function releaseSpot(uid) {
+  const existing = db.prepare('SELECT * FROM active_spots WHERE uid = ?').get(uid);
+  if (!existing) return null;
+  db.prepare('DELETE FROM active_spots WHERE uid = ?').run(uid);
+  return existing;
+}
+
 function init(socketIo) {
   io = socketIo;
 
@@ -75,12 +113,34 @@ function handleScan(payload, eventType) {
 
   let status = 'DENIED';
   let name = 'Unknown';
+  let spotLabel = '-';
+  let denialReason = '';
 
   if (user) {
     name = user.name;
     if (user.is_active) {
-      status = 'ALLOWED';
+      if (eventType === 'IN') {
+        const assignment = getOrAssignSpot(uid, location);
+        if (assignment) {
+          status = 'ALLOWED';
+          spotLabel = assignment.spot_label;
+        } else {
+          denialReason = 'zone full (no free spots)';
+        }
+      } else if (eventType === 'OUT') {
+        const released = releaseSpot(uid);
+        if (released) {
+          status = 'ALLOWED';
+          spotLabel = released.spot_label;
+        } else {
+          denialReason = 'no active spot assigned';
+        }
+      }
+    } else {
+      denialReason = 'user is inactive';
     }
+  } else {
+    denialReason = 'UID not found';
   }
 
   // Log the event
@@ -88,8 +148,8 @@ function handleScan(payload, eventType) {
     'INSERT INTO logs (uid, user_name, event_type, location, status) VALUES (?, ?, ?, ?, ?)'
   ).run(uid, name, eventType, location, status);
 
-  // Publish access response back to ESP32: UID,STATUS,NAME
-  const response = `${uid},${status},${name}`;
+  // Publish access response back to ESP32: UID,STATUS,NAME,SPOT
+  const response = `${uid},${status},${name},${spotLabel}`;
   if (mqttClient && mqttClient.connected) {
     mqttClient.publish('access/response', response);
     console.log(`📤 [access/response] ${response}`);
@@ -102,11 +162,18 @@ function handleScan(payload, eventType) {
     event_type: eventType,
     location,
     status,
+    spot_label: spotLabel,
     timestamp: new Date().toISOString(),
   };
 
   if (io) io.emit('parking:event', logEntry);
-  console.log(`${status === 'ALLOWED' ? '✅' : '🚫'} ${eventType} | ${uid} | ${name} | Zone ${location}`);
+  if (status === 'ALLOWED') {
+    console.log(`✅ ${eventType} | ${uid} | ${name} | Zone ${location} | Spot ${spotLabel}`);
+  } else {
+    console.log(`🚫 ${eventType} | ${uid} | ${name} | Zone ${location} | ${denialReason || 'denied'}`);
+  }
+
+  return logEntry;
 }
 
 /**
@@ -115,7 +182,7 @@ function handleScan(payload, eventType) {
  */
 function simulateScan(uid, location, eventType) {
   const payload = `${uid},${location}`;
-  handleScan(payload, eventType);
+  return handleScan(payload, eventType);
 }
 
 function getStatus() {

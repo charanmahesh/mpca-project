@@ -58,12 +58,13 @@ export function render() {
               <th>Vehicle</th>
               <th>Phone</th>
               <th>Status</th>
+              <th>Current Spot</th>
               <th>Registered</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody id="users-tbody">
-            <tr><td colspan="7" class="empty-state"><p>Loading users...</p></td></tr>
+            <tr><td colspan="8" class="empty-state"><p>Loading users...</p></td></tr>
           </tbody>
         </table>
       </div>
@@ -171,7 +172,7 @@ async function loadUsers(search = '') {
     if (countEl) countEl.textContent = `${users.length} user${users.length !== 1 ? 's' : ''}`;
 
     if (users.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7">
+      tbody.innerHTML = `<tr><td colspan="8">
         <div class="empty-state">
           <h3>No users found</h3>
           <p>Register a new user using the form above</p>
@@ -180,7 +181,9 @@ async function loadUsers(search = '') {
       return;
     }
 
-    tbody.innerHTML = users.map(u => `
+    tbody.innerHTML = users.map(u => {
+      const spotLabel = u.current_spot || (u.current_location != null ? `Zone ${u.current_location}` : '—');
+      return `
       <tr>
         <td class="uid-cell">${u.uid}</td>
         <td style="font-weight:500;">${u.name}</td>
@@ -191,6 +194,7 @@ async function loadUsers(search = '') {
             ${u.is_active ? 'Active' : 'Blocked'}
           </span>
         </td>
+        <td>${spotLabel}</td>
         <td class="text-muted">${new Date(u.created_at).toLocaleDateString()}</td>
         <td>
           <div class="btn-group">
@@ -199,7 +203,8 @@ async function loadUsers(search = '') {
           </div>
         </td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     // Bind action event listeners
     bindTableActions();
